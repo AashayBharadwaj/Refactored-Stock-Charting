@@ -1,8 +1,13 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from functions.data_fetching import fetch_stock_data  # Ensure this path is correct
-from functions.ui_elements import render_header_and_text, render_layout_with_image, render_portfolio_header_and_text, render_portfolio_layout_with_image
+from functions.data_fetching import fetch_stock_data
+from functions.ui_elements import (
+    render_header_and_text,
+    render_layout_with_image,
+    render_portfolio_header_and_text,
+    render_portfolio_layout_with_image,
+)
 
 def track_portfolio(ticker_options, default_ticker, default_start_date, default_end_date):
     render_portfolio_layout_with_image()
@@ -28,10 +33,18 @@ def track_portfolio(ticker_options, default_ticker, default_start_date, default_
             stock_quantity = st.number_input(f'Quantity of Stock {i + 1} Purchased', min_value=1, value=1, step=1)
             
         stock_data = fetch_stock_data(stock_ticker, stock_start_date, stock_end_date)
+        stock_data.reset_index(inplace=True)
+
+        # Generate business date range matching the stock_data length
+        date_range = pd.bdate_range(start=stock_start_date, end=stock_end_date)
+        stock_data['Date'] = date_range[:len(stock_data)]  # Handle cases where data may be shorter than date range
+
         stock_data['Quantity'] = stock_quantity
-        stock_data[f'{stock_ticker} Invested'] = stock_data['Close'] * stock_quantity
+        stock_data[f'{stock_ticker} Invested'] = stock_data['Adj Close'] * stock_quantity
         
-        stock_data = stock_data[['Close', 'Quantity', f'{stock_ticker} Invested']].rename(columns={'Close': f'{stock_ticker} Close'})
+        stock_data = stock_data[['Date', 'Adj Close', 'Quantity', f'{stock_ticker} Invested']].rename(
+            columns={'Adj Close': f'{stock_ticker} Close'}
+        )
         stock_details.append(stock_data)
 
     if stock_details:
@@ -39,15 +52,16 @@ def track_portfolio(ticker_options, default_ticker, default_start_date, default_
         combined_portfolio = reduce(lambda left, right: pd.merge(left, right, on='Date', how='outer'), stock_details)
         combined_portfolio.fillna(0, inplace=True)
         combined_portfolio['Total Investment'] = combined_portfolio[[col for col in combined_portfolio.columns if 'Invested' in col]].sum(axis=1)
-        
-        # Diagnostic print
-        # st.write("Column names in combined DataFrame:", combined_portfolio.columns.tolist())
-        
-        # Ensure 'Date' is a column, not an index
-        if 'Date' not in combined_portfolio.columns:
-            combined_portfolio.reset_index(inplace=True)
-        
-        # Create and display a plotly line chart for Total Investment
+
+        # st.write("Preview of Combined Portfolio:")
+        # st.dataframe(combined_portfolio)
+
+        # st.write("Column Names:")
+        # st.write(combined_portfolio.columns.tolist())
+
+        # st.write("Index Name:")
+        # st.write(combined_portfolio.index.name)
+
         fig = px.line(combined_portfolio, x='Date', y='Total Investment', title='Total Investment Over Time')
         st.plotly_chart(fig)
     else:
