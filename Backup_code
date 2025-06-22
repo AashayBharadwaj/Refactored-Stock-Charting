@@ -1,0 +1,53 @@
+import streamlit as st
+from datetime import datetime
+from functions.ui_elements import render_header_and_text
+from functions.data_fetching import get_ticker_options, fetch_stock_data
+from functions.data_processing import process_price_data, calculate_annual_return, calculate_standard_deviation, calculate_risk_adjusted_return
+
+# Default values
+default_ticker = 'MSFT'
+default_start_date = datetime(2020, 1, 1)
+default_end_date = datetime.today()
+
+# Get ticker options
+ticker_options = get_ticker_options()
+
+# Call the cached function to render header and text
+render_header_and_text()
+
+# User inputs with default values
+ticker = st.sidebar.selectbox('Ticker', options=ticker_options, index=ticker_options.index(default_ticker))
+start_date = st.sidebar.date_input('Start Date', value=default_start_date)
+end_date = st.sidebar.date_input('End Date', value=default_end_date)
+
+# Fetch stock data
+data = fetch_stock_data(ticker, start_date, end_date)
+
+# Plot stock data
+fig = process_price_data(data, ticker)
+st.plotly_chart(fig)
+
+# Create tabs for different data views
+pricing_data, fundamental_data, news = st.tabs(["Price Data", "Fundamental Data", "Top 10 News articles"])
+
+with pricing_data:
+    st.write('Price Movement')
+    data2 = data.copy()
+    data2['% Change'] = data['Adj Close'] / data['Adj Close'].shift(1) - 1
+    data2.dropna(inplace=True)
+    st.write(data2)
+    
+    annual_return = calculate_annual_return(data2)
+    st.write('Annual Return is ', annual_return, '%')
+    
+    stdev = calculate_standard_deviation(data2)
+    st.write('Standard Deviation is ', stdev, '%')
+    
+    risk_adj_return = calculate_risk_adjusted_return(annual_return, stdev)
+    st.write('Risk Adj Return is', risk_adj_return)
+
+with fundamental_data:
+    st.write('This part is work in progress!!')
+    
+with news:
+    st.write('So is this!! Go look at the beautiful charts above!')
